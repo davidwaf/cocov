@@ -1,0 +1,128 @@
+# =============================================================
+# COCOV Experimental Configuration
+# All hyperparameters and paths in one place.
+# To reproduce any experiment, only this file needs to change.
+# =============================================================
+
+# ---------------------------------------------------------
+# Paths
+# ---------------------------------------------------------
+paths:
+  vggface2_root: "/opt/data/vggface2/VGGface2_None_norm_512_true_bygfpgan"
+  cacd_root: "/opt/data/cacd/archive/cacd_split/cacd_split"
+  fgnet_root: "/opt/data/fgnet/FGNET/images"
+  embeddings_dir: "/opt/data/embeddings"
+  results_dir: "/opt/data/results"
+  logs_dir: "/opt/data/logs"
+
+# ---------------------------------------------------------
+# Dataset
+# ---------------------------------------------------------
+dataset:
+  vggface2:
+    n_identities: 3000
+    n_diagnostic: 200
+    min_images_per_identity: 20
+    enrollment_size: 5
+    random_seed: 42
+
+  cacd:
+    min_images_per_identity: 20
+    enrollment_size: 5
+    random_seed: 42
+
+  fgnet:
+    enrollment_size: 5
+    random_seed: 42
+
+# ---------------------------------------------------------
+# Experiment
+# ---------------------------------------------------------
+experiment:
+  n_runs: 5
+  impostor_ratio: 1.0
+  random_seed_base: 42
+
+# ---------------------------------------------------------
+# Encoder
+# ---------------------------------------------------------
+encoder:
+  model: "InceptionResnetV1"
+  pretrained: "vggface2"
+  embedding_dim: 512
+  input_size: 160
+  device: "cuda"
+
+# ---------------------------------------------------------
+# Verification
+# ---------------------------------------------------------
+verification:
+  threshold: 0.5
+
+# ---------------------------------------------------------
+# Drift
+# ---------------------------------------------------------
+drift:
+  threshold: 0.35
+
+# ---------------------------------------------------------
+# Prototype Management (COCOV)
+# ---------------------------------------------------------
+prototype:
+  assign_threshold: 0.3
+  new_threshold: 0.6
+  merge_threshold: 0.95
+  momentum: 0.9
+  max_prototypes: 10
+
+# ---------------------------------------------------------
+# Baselines
+# ---------------------------------------------------------
+baselines:
+  replay:
+    buffer_size: 10
+    consolidation_interval: 5
+  buffer:
+    buffer_size: 10
+
+# ---------------------------------------------------------
+# Calibration
+# ---------------------------------------------------------
+calibration:
+  n_calibration_identities: 200
+  calibration_seed: 99
+  sweep:
+    verification_threshold:
+      min: 0.1
+      max: 0.9
+      steps: 17
+    drift_threshold:
+      min: 0.1
+      max: 0.9
+      steps: 17
+    assign_threshold:
+      min: 0.1
+      max: 0.6
+      steps: 11
+    new_threshold:
+      min: 0.3
+      max: 0.9
+      steps: 13
+    merge_threshold:
+      min: 0.7
+      max: 0.99
+      steps: 10
+    momentum:
+      min: 0.5
+      max: 0.99
+      steps: 10
+    max_prototypes:
+      values: [1, 2, 3, 5, 7, 10, 15, 20]
+
+# ---------------------------------------------------------
+# Webapp
+# ---------------------------------------------------------
+webapp:
+  host: "0.0.0.0"
+  port: 8000
+  escalation_log: "/opt/data/logs/reviewer_log.json"

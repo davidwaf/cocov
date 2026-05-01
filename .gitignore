@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.env
+
+# Data --- never commit raw data or embeddings
+data/raw/
+data/embeddings/
+*.npy
+*.npz
+*.pkl
+*.h5
+
+# Results --- generated figures and tables
+results/
+outputs/
+figures/
+
+# Logs
+logs/
+*.log
+
+# Model weights
+*.pt
+*.pth
+*.ckpt
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config with sensitive paths
+config/local.yaml
