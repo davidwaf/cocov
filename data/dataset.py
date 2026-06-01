@@ -28,6 +28,7 @@ import re
 import json
 import random
 import logging
+import unicodedata
 import numpy as np
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -564,13 +565,16 @@ class CACDDataset:
         Returns
         -------
         str
-            Identity name extracted from filename.
+            Identity name extracted from filename,
+            NFC normalised for consistent comparison.
         """
         parts = filename.split('_')
         if len(parts) >= 3:
             # Format: year_firstname_lastname_index.jpg
-            return '_'.join(parts[1:-1])
-        return filename
+            name = '_'.join(parts[1:-1])
+        else:
+            name = filename
+        return unicodedata.normalize('NFC', name)
 
     def _discover_identities(self) -> dict[str, list[str]]:
         """
@@ -592,7 +596,11 @@ class CACDDataset:
             if not identity_dir.is_dir():
                 continue
 
-            identity_name = identity_dir.name
+            # NFC normalise to handle special characters
+            # consistently across filesystems
+            identity_name = unicodedata.normalize(
+                'NFC', identity_dir.name
+            )
             images = []
 
             for img_path in identity_dir.iterdir():

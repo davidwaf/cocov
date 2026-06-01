@@ -26,6 +26,7 @@ Project: COCOV - Continuous Collaborative Verification
 import numpy as np
 import json
 import logging
+import unicodedata
 from pathlib import Path
 from tqdm import tqdm
 from models.encoder import FaceEncoder
@@ -102,7 +103,11 @@ class EmbeddingCache:
             identities.items(),
             desc="Extracting embeddings"
         ):
-            identity_cache = self.cache_dir / identity_id
+            # NFC normalise to handle special characters
+            identity_id_norm = unicodedata.normalize(
+                'NFC', identity_id
+            )
+            identity_cache = self.cache_dir / identity_id_norm
 
             if identity_cache.exists() and not force:
                 skipped += 1
@@ -166,7 +171,10 @@ class EmbeddingCache:
         FileNotFoundError
             If embeddings are not cached for this identity.
         """
-        identity_cache = self.cache_dir / identity_id
+        identity_id_norm = unicodedata.normalize(
+            'NFC', identity_id
+        )
+        identity_cache = self.cache_dir / identity_id_norm
 
         emb_path = identity_cache / "embeddings.npy"
         paths_path = identity_cache / "paths.json"
@@ -219,12 +227,14 @@ class EmbeddingCache:
             )
 
             k = len(ip.enrollment_paths)
+            n_total = len(embeddings)
+            n_enroll = min(k, n_total)
 
             result[identity_id] = {
-                'enrollment': embeddings[:k],
-                'probes': embeddings[k:],
-                'enrollment_paths': ip.enrollment_paths,
-                'probe_paths': ip.probe_paths
+                'enrollment': embeddings[:n_enroll],
+                'probes': embeddings[n_enroll:],
+                'enrollment_paths': ip.enrollment_paths[:n_enroll],
+                'probe_paths': ip.probe_paths[:max(0, n_total - n_enroll)]
             }
 
         return result
@@ -273,14 +283,34 @@ class EmbeddingCache:
                 id_data['enrollment_paths'] +
                 id_data['probe_paths']
             )
-            all_embeddings = np.vstack([
-                id_data['enrollment'],
-                id_data['probes']
-            ])
+
+            # Stack embeddings safely
+            enroll = id_data['enrollment']
+            probes = id_data['probes']
+            if len(enroll) == 0 and len(probes) == 0:
+                continue
+            elif len(enroll) == 0:
+                all_embeddings = probes
+            elif len(probes) == 0:
+                all_embeddings = enroll
+            else:
+                all_embeddings = np.vstack([
+                    enroll, probes
+                ])
 
             if probe_path in all_paths:
                 idx = all_paths.index(probe_path)
-                embedding = all_embeddings[idx]
+                # Guard against index/embedding mismatch
+                if idx < len(all_embeddings):
+                    embedding = all_embeddings[idx]
+                else:
+                    logger.warning(
+                        f"Index {idx} out of bounds for "
+                        f"{true_id} embeddings "
+                        f"(size={len(all_embeddings)}). "
+                        f"Skipping."
+                    )
+                    continue
             else:
                 logger.warning(
                     f"Impostor probe path not found in "
@@ -311,8 +341,11 @@ class EmbeddingCache:
         bool
             True if cached embeddings exist.
         """
+        identity_id_norm = unicodedata.normalize(
+            'NFC', identity_id
+        )
         return (
-            self.cache_dir / identity_id / "embeddings.npy"
+            self.cache_dir / identity_id_norm / "embeddings.npy"
         ).exists()
 
     def cache_stats(self) -> dict:

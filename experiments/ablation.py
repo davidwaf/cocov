@@ -52,6 +52,8 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 import yaml
+import gc
+import torch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -421,16 +423,27 @@ def run_ablation(config_path: str) -> None:
         ]
     }
 
-    for run_idx in range(n_runs):
+    batch_size = config['dataset']['vggface2'].get(
+        'batch_size', 100
+    )
+    # Limit ablation to 5 runs for tractability
+    ablation_runs = min(n_runs, 5)
+
+    for run_idx in range(ablation_runs):
         run_seed = seed_base + run_idx
         logger.info(
-            f"\n--- Ablation Run {run_idx + 1}/{n_runs} "
+            f"\n--- Ablation Run {run_idx + 1}/{ablation_runs} "
             f"(seed={run_seed}) ---"
         )
 
+        # Use same batching as main experiment
+        start_idx = run_idx * batch_size
+        end_idx = start_idx + batch_size
+        batch_eval_ids = eval_ids[start_idx:end_idx]
+
         # Build partition
         partition = ds.build_partition(
-            identity_ids=eval_ids,
+            identity_ids=batch_eval_ids,
             enrollment_size=config['dataset'][
                 'vggface2'
             ]['enrollment_size'],
@@ -518,6 +531,12 @@ def run_ablation(config_path: str) -> None:
                 f"TAR@1%={metrics.tar_at_far1:.4f} "
                 f"Updates={metrics.total_updates}"
             )
+
+            # Free memory between methods
+            del method
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     # Aggregate and save
     logger.info("\n=== Ablation Results ===")

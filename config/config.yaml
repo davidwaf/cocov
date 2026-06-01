@@ -1,12 +1,7 @@
 # =============================================================
 # COCOV Experimental Configuration
-# All hyperparameters and paths in one place.
-# To reproduce any experiment, only this file needs to change.
 # =============================================================
 
-# ---------------------------------------------------------
-# Paths
-# ---------------------------------------------------------
 paths:
   vggface2_root: "/opt/data/vggface2/VGGface2_None_norm_512_true_bygfpgan"
   cacd_root: "/opt/data/cacd/archive/cacd_split/cacd_split"
@@ -15,12 +10,10 @@ paths:
   results_dir: "/opt/data/results"
   logs_dir: "/opt/data/logs"
 
-# ---------------------------------------------------------
-# Dataset
-# ---------------------------------------------------------
 dataset:
   vggface2:
     n_identities: 3000
+    batch_size: 100
     n_diagnostic: 200
     min_images_per_identity: 20
     enrollment_size: 5
@@ -35,17 +28,11 @@ dataset:
     enrollment_size: 5
     random_seed: 42
 
-# ---------------------------------------------------------
-# Experiment
-# ---------------------------------------------------------
 experiment:
-  n_runs: 5
+  n_runs: 30
   impostor_ratio: 1.0
   random_seed_base: 42
 
-# ---------------------------------------------------------
-# Encoder
-# ---------------------------------------------------------
 encoder:
   model: "InceptionResnetV1"
   pretrained: "vggface2"
@@ -53,31 +40,19 @@ encoder:
   input_size: 160
   device: "cuda"
 
-# ---------------------------------------------------------
-# Verification
-# ---------------------------------------------------------
 verification:
   threshold: 0.5
 
-# ---------------------------------------------------------
-# Drift
-# ---------------------------------------------------------
 drift:
   threshold: 0.35
 
-# ---------------------------------------------------------
-# Prototype Management (COCOV)
-# ---------------------------------------------------------
 prototype:
   assign_threshold: 0.3
   new_threshold: 0.6
   merge_threshold: 0.95
-  momentum: 0.9
+  momentum: 0.5
   max_prototypes: 10
 
-# ---------------------------------------------------------
-# Baselines
-# ---------------------------------------------------------
 baselines:
   replay:
     buffer_size: 10
@@ -85,12 +60,10 @@ baselines:
   buffer:
     buffer_size: 10
 
-# ---------------------------------------------------------
-# Calibration
-# ---------------------------------------------------------
 calibration:
   n_calibration_identities: 200
   calibration_seed: 99
+  calibration_operating_point: "tar_far1"
   sweep:
     verification_threshold:
       min: 0.1
@@ -119,9 +92,6 @@ calibration:
     max_prototypes:
       values: [1, 2, 3, 5, 7, 10, 15, 20]
 
-# ---------------------------------------------------------
-# Webapp
-# ---------------------------------------------------------
 webapp:
   host: "0.0.0.0"
   port: 8000

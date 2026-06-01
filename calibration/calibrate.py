@@ -165,9 +165,13 @@ class ThresholdCalibrator:
             f"{len(labels)-sum(labels)} impostor."
         )
 
-        # Calibrate tau_ver at EER operating point
+        # Calibrate tau_ver at configured operating point
+        operating_point = sweep_config.get(
+            "operating_point", "tar_far1"
+        )
         tau_ver_optimal, eer = self._calibrate_tau_ver(
-            similarities, labels
+            similarities, labels,
+            operating_point=operating_point
         )
         logger.info(
             f"tau_ver calibrated: {tau_ver_optimal:.4f} "
@@ -324,10 +328,20 @@ class ThresholdCalibrator:
     def _calibrate_tau_ver(
         self,
         similarities: list[float],
-        labels: list[int]
+        labels: list[int],
+        operating_point: str = "tar_far1"
     ) -> tuple[float, float]:
         """
-        Calibrate verification threshold at EER operating point.
+        Calibrate verification threshold.
+
+        Two operating points are supported:
+            eer: threshold at equal error rate
+            tar_far1: threshold maximising TAR at FAR=1%
+
+        The tar_far1 operating point is preferred for
+        security-sensitive verification settings and for
+        COCOV, where escalation of uncertain observations
+        is preferable to automatic false rejection.
 
         Parameters
         ----------
@@ -335,6 +349,8 @@ class ThresholdCalibrator:
             Cosine similarity scores for all trials.
         labels : list of int
             Ground truth labels (1=genuine, 0=impostor).
+        operating_point : str
+            Calibration objective. Default is tar_far1.
 
         Returns
         -------
@@ -350,7 +366,33 @@ class ThresholdCalibrator:
         fnr = 1.0 - tpr
         eer_idx = np.argmin(np.abs(fpr - fnr))
         eer = float(np.mean([fpr[eer_idx], fnr[eer_idx]]))
-        tau_ver = float(thresholds[eer_idx])
+
+        if operating_point == "tar_far1":
+            # Find threshold giving FAR closest to 1%
+            # without exceeding it
+            target_far = 0.01
+            valid = fpr <= target_far
+            if valid.any():
+                # Among thresholds with FAR <= 1%,
+                # pick the one with highest TAR
+                best_idx = np.argmax(tpr * valid)
+                tau_ver = float(thresholds[best_idx])
+            else:
+                # Fall back to EER if no point meets FAR<=1%
+                tau_ver = float(thresholds[eer_idx])
+                logger.warning(
+                    "No threshold achieves FAR<=1%. "
+                    "Falling back to EER operating point."
+                )
+        else:
+            # EER operating point
+            tau_ver = float(thresholds[eer_idx])
+
+        logger.info(
+            f"tau_ver calibrated at {operating_point} "
+            f"operating point: {tau_ver:.4f} "
+            f"(EER={eer:.4f})"
+        )
 
         return tau_ver, eer
 
@@ -383,7 +425,9 @@ class ThresholdCalibrator:
         genuine_drifts = np.array([
             d for d, l in zip(drifts, labels) if l == 1
         ])
-        tau_delta = float(np.percentile(genuine_drifts, 95))
+        # 99th percentile: only escalate the most extreme
+        # drift observations, reducing escalation rate
+        tau_delta = float(np.percentile(genuine_drifts, 99))
         return tau_delta
 
     def _run_sensitivity_sweeps(

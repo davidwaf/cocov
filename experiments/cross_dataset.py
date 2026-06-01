@@ -202,7 +202,8 @@ def run_cross_dataset(config_path: str) -> None:
         device=config['encoder']['device']
     )
     calculator = MetricsCalculator()
-    n_runs = config['experiment']['n_runs']
+    # Limit cross-dataset to 5 runs for tractability
+    n_runs = min(config['experiment']['n_runs'], 5)
     seed_base = config['experiment']['random_seed_base']
 
     all_results = {}
@@ -223,6 +224,32 @@ def run_cross_dataset(config_path: str) -> None:
         logger.info(
             f"CACD: {cacd.n_eligible} eligible identities"
         )
+
+        # Pre-extract embeddings for ALL runs upfront
+        # by building partitions for each seed and
+        # extracting any missing identities
+        logger.info("Pre-extracting CACD embeddings...")
+        cacd_cache = EmbeddingCache(
+            cache_dir=config['paths']['embeddings_dir'],
+            encoder=encoder,
+            dataset_name='cacd'
+        )
+        for pre_seed in range(
+            seed_base, seed_base + n_runs
+        ):
+            pre_partition = cacd.build_partition(
+                enrollment_size=config['dataset'][
+                    'cacd'
+                ]['enrollment_size'],
+                impostor_ratio=config['experiment'][
+                    'impostor_ratio'
+                ],
+                seed=pre_seed
+            )
+            cacd_cache.extract_and_cache(
+                pre_partition, batch_size=32
+            )
+        logger.info("CACD embeddings ready.")
 
         cacd_run_metrics = {
             name: [] for name in [
@@ -254,7 +281,7 @@ def run_cross_dataset(config_path: str) -> None:
                 dataset_name='cacd'
             )
             cache.extract_and_cache(
-                partition, batch_size=64
+                partition, batch_size=32
             )
             loaded = cache.load_partition_embeddings(
                 partition
@@ -321,6 +348,24 @@ def run_cross_dataset(config_path: str) -> None:
             f"FG-NET: {fgnet.n_identities} identities"
         )
 
+        # Pre-extract FG-NET embeddings for all runs
+        logger.info("Pre-extracting FG-NET embeddings...")
+        fgnet_cache = EmbeddingCache(
+            cache_dir=config['paths']['embeddings_dir'],
+            encoder=encoder,
+            dataset_name='fgnet'
+        )
+        for pre_seed in range(
+            seed_base, seed_base + n_runs
+        ):
+            pre_partition = fgnet.build_partition(
+                seed=pre_seed
+            )
+            fgnet_cache.extract_and_cache(
+                pre_partition, batch_size=32
+            )
+        logger.info("FG-NET embeddings ready.")
+
         fgnet_run_metrics = {
             name: [] for name in [
                 'static', 'ols', 'replay',
@@ -345,7 +390,7 @@ def run_cross_dataset(config_path: str) -> None:
                 dataset_name='fgnet'
             )
             cache.extract_and_cache(
-                partition, batch_size=64
+                partition, batch_size=32
             )
             loaded = cache.load_partition_embeddings(
                 partition
