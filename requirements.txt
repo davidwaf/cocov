@@ -1,9 +1,33 @@
-# Core
+# =============================================================
+# COCOV — Requirements
+# =============================================================
+#
+# Core installation (all encoders):
+#   pip install -r requirements.txt
+#
+# Encoder-specific dependencies are marked below.
+# See ENCODERS.md for full installation instructions.
+# =============================================================
+
+# ── Core deep learning ────────────────────────────────────────
 torch>=2.7.1
 torchvision>=0.22.1
+
+# ── ENC01: FaceNet (auto-downloads weights on first use) ──────
 facenet-pytorch==2.6.0
 
-# Data and computation
+# ── ENC02/03/04: ArcFace, MobileFaceNet (InsightFace ONNX) ───
+# Install onnxruntime-gpu (not onnxruntime) for GPU inference.
+# Also requires: export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+onnxruntime-gpu>=1.20.0
+insightface>=0.7.3
+
+# ── ENC04: AdaFace (CVLFace, requires separate weight download) ──
+# See ENCODERS.md for weight download instructions.
+# Weights: huggingface.co/minchul/cvlface_adaface_ir101_ms1mv3
+fvcore>=0.1.5
+
+# ── Data and computation ──────────────────────────────────────
 numpy==1.26.4
 pandas>=2.3.3
 scipy>=1.16.3
@@ -11,19 +35,22 @@ scikit-learn>=1.8.0
 Pillow>=11.1.0
 opencv-python>=4.13.0
 
-# Visualisation
+# ── Visualisation ─────────────────────────────────────────────
 matplotlib>=3.10.8
 seaborn>=0.13.2
 
-# Web application
+# ── Web application (reviewer interface) ──────────────────────
 fastapi==0.115.0
 uvicorn>=0.46.0
 python-multipart>=0.0.27
 starlette>=1.0.0
 pydantic>=2.9.0
 
-# Utilities
+# ── Utilities ─────────────────────────────────────────────────
 tqdm>=4.67.1
 pyyaml>=6.0
+huggingface-hub>=0.19.3
+
+# ── Development ───────────────────────────────────────────────
 pytest>=9.0.3
 black>=26.3.1
