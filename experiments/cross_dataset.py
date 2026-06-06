@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from data.dataset import CACDDataset, FGNETDataset
 from data.embeddings import EmbeddingCache
 from data.stream import VerificationStream
-from models.encoder import FaceEncoder
+from models.encoder import get_encoder
 from methods.static import StaticEnrollment
 from methods.ols import NaiveOLSExpansion
 from methods.replay import ReplayDualMemory
@@ -178,7 +178,11 @@ def run_cross_dataset(config_path: str) -> None:
     logger.info("=== Cross-Dataset Evaluation ===")
 
     # Load calibration results
-    results_dir = Path(config['paths']['results_dir'])
+    results_dir = (
+        Path(config['paths']['results_dir'])
+        / config['encoder']['code']
+    )
+    results_dir.mkdir(parents=True, exist_ok=True)
     cal_path = results_dir / 'calibration_results.json'
 
     if not cal_path.exists():
@@ -198,9 +202,18 @@ def run_cross_dataset(config_path: str) -> None:
         f"tau_delta={tau_delta:.4f}"
     )
 
-    encoder = FaceEncoder(
+    if config['encoder'].get('adaface_weights'):
+        import os
+        os.environ['ADAFACE_WEIGHTS'] = config['encoder']['adaface_weights']
+    if config['encoder'].get('vitarcface_weights'):
+        import os
+        os.environ['VITARCFACE_WEIGHTS'] = config['encoder']['vitarcface_weights']
+
+    encoder = get_encoder(
+        name=config['encoder']['name'],
         device=config['encoder']['device']
     )
+    logger.info(f"Encoder loaded: {encoder.info}")
     calculator = MetricsCalculator()
     # Limit cross-dataset to 5 runs for tractability
     n_runs = min(config['experiment']['n_runs'], 5)
@@ -221,6 +234,21 @@ def run_cross_dataset(config_path: str) -> None:
                 'min_images_per_identity'
             ]
         )
+        # Cap identities to avoid OOM on large streams
+        max_ids = config['dataset']['cacd'].get('max_identities', None)
+        if max_ids and len(cacd._identity_paths) > max_ids:
+            import random
+            rng = random.Random(config['dataset']['cacd']['random_seed'])
+            sampled_keys = rng.sample(
+                sorted(cacd._identity_paths.keys()), max_ids
+            )
+            cacd._identity_paths = {
+                k: cacd._identity_paths[k] for k in sampled_keys
+            }
+            logger.info(
+                f"CACD: capped to {max_ids} identities "
+                f"(from {cacd.n_eligible} eligible)"
+            )
         logger.info(
             f"CACD: {cacd.n_eligible} eligible identities"
         )
@@ -230,7 +258,7 @@ def run_cross_dataset(config_path: str) -> None:
         # extracting any missing identities
         logger.info("Pre-extracting CACD embeddings...")
         cacd_cache = EmbeddingCache(
-            cache_dir=config['paths']['embeddings_dir'],
+            cache_dir=str(Path(config['paths']['embeddings_dir']) / config['encoder'].get('cache_subdir', config['encoder']['name'])),
             encoder=encoder,
             dataset_name='cacd'
         )
@@ -247,7 +275,7 @@ def run_cross_dataset(config_path: str) -> None:
                 seed=pre_seed
             )
             cacd_cache.extract_and_cache(
-                pre_partition, batch_size=32
+                pre_partition, batch_size=4
             )
         logger.info("CACD embeddings ready.")
 
@@ -276,12 +304,12 @@ def run_cross_dataset(config_path: str) -> None:
             )
 
             cache = EmbeddingCache(
-                cache_dir=config['paths']['embeddings_dir'],
+                cache_dir=str(Path(config['paths']['embeddings_dir']) / config['encoder'].get('cache_subdir', config['encoder']['name'])),
                 encoder=encoder,
                 dataset_name='cacd'
             )
             cache.extract_and_cache(
-                partition, batch_size=32
+                partition, batch_size=4
             )
             loaded = cache.load_partition_embeddings(
                 partition
@@ -351,7 +379,7 @@ def run_cross_dataset(config_path: str) -> None:
         # Pre-extract FG-NET embeddings for all runs
         logger.info("Pre-extracting FG-NET embeddings...")
         fgnet_cache = EmbeddingCache(
-            cache_dir=config['paths']['embeddings_dir'],
+            cache_dir=str(Path(config['paths']['embeddings_dir']) / config['encoder'].get('cache_subdir', config['encoder']['name'])),
             encoder=encoder,
             dataset_name='fgnet'
         )
@@ -385,7 +413,7 @@ def run_cross_dataset(config_path: str) -> None:
             )
 
             cache = EmbeddingCache(
-                cache_dir=config['paths']['embeddings_dir'],
+                cache_dir=str(Path(config['paths']['embeddings_dir']) / config['encoder'].get('cache_subdir', config['encoder']['name'])),
                 encoder=encoder,
                 dataset_name='fgnet'
             )
@@ -524,7 +552,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config',
         type=str,
-        default='/opt/code/cocov/config/config.yaml',
+        default='/opt/code/ps/cocov/config/config.yaml',
         help='Path to configuration file'
     )
     args = parser.parse_args()

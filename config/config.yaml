@@ -7,8 +7,33 @@ paths:
   cacd_root: "/opt/data/cacd/archive/cacd_split/cacd_split"
   fgnet_root: "/opt/data/fgnet/FGNET/images"
   embeddings_dir: "/opt/data/embeddings"
-  results_dir: "/opt/data/results"
+  results_dir: "/opt/data/cocov/results"
   logs_dir: "/opt/data/logs"
+
+# On-disk layout produced by the pipeline:
+#
+#   /opt/data/embeddings/
+#       facenet/vggface2/{id}/embeddings.npy    <- subfoldered by encoder name
+#       arcface_r50/...
+#       arcface_r100/...
+#       adaface/...
+#       vitb_arcface/...
+#
+#   /opt/data/cocov/results/
+#       ENC01_FACENET/                          <- subfoldered by encoder code
+#           calibration_results.json
+#           run_00/{method}.json
+#           run_01/{method}.json  ...
+#           aggregated_results.json
+#           results_table.tex
+#           cross_dataset_results.json
+#           ablation_results.json
+#       ENC02_ARCFACE_R50/   (same structure)
+#       ENC03_ARCFACE_R100/
+#       ENC04_ADAFACE/
+#       ENC05_VITB_ARCFACE/
+#
+#   /opt/data/logs/   (shared)
 
 dataset:
   vggface2:
@@ -23,6 +48,7 @@ dataset:
     min_images_per_identity: 20
     enrollment_size: 5
     random_seed: 42
+    max_identities: 500
 
   fgnet:
     enrollment_size: 5
@@ -33,12 +59,52 @@ experiment:
   impostor_ratio: 1.0
   random_seed_base: 42
 
+# -------------------------------------------------------------
+# Encoder configuration
+#
+# name         : encoder key passed to get_encoder().
+#                One of: facenet | arcface_r50 | arcface_r100
+#                        | adaface | vitb_arcface
+#
+# embedding_dim: must be 512 for all current backbones.
+#
+# input_size   : backbone-specific input resolution.
+#                facenet      -> 160
+#                all others   -> 112
+#
+# cache_subdir : subdirectory under paths.embeddings_dir where
+#                extracted embeddings are stored.  Defaults to
+#                the encoder name so each backbone has its own
+#                cache and caches never interfere with each other.
+#
+# device       : 'cuda' or 'cpu'.
+#
+# adaface_weights  : path to AdaFace checkpoint (adaface only).
+#                    Overrides the ADAFACE_WEIGHTS env var when set.
+#
+# vitarcface_weights : path to ViT ONNX or PyTorch checkpoint.
+#                    Overrides the VITARCFACE_WEIGHTS env var when set.
+# -------------------------------------------------------------
 encoder:
-  model: "InceptionResnetV1"
-  pretrained: "vggface2"
+  name: "facenet"               # change this to switch backbone
+  code: "ENC01_FACENET"         # used as results subfolder: /opt/data/cocov/results/{code}/
   embedding_dim: 512
-  input_size: 160
+  input_size: 160               # 160 for facenet; 112 for all others
   device: "cuda"
+  cache_subdir: "facenet"       # embedding cache subdirectory (= name)
+
+  # Encoder-specific weight paths (leave empty to use defaults / env vars)
+  adaface_weights: ""
+  vitarcface_weights: ""
+
+# Encoder reference table — update name, code, input_size, cache_subdir together:
+#
+#   name            code                  input_size  cache_subdir
+#   facenet         ENC01_FACENET         160         facenet
+#   arcface_r50     ENC02_ARCFACE_R50     112         arcface_r50
+#   arcface_r100    ENC03_ARCFACE_R100    112         arcface_r100
+#   adaface         ENC04_ADAFACE         112         adaface
+#   vitb_arcface    ENC05_VITB_ARCFACE    112         vitb_arcface
 
 verification:
   threshold: 0.5

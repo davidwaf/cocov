@@ -60,7 +60,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from data.dataset import VGGFace2Dataset
 from data.embeddings import EmbeddingCache
 from data.stream import VerificationStream
-from models.encoder import FaceEncoder
+from models.encoder import get_encoder
 from models.identity_memory import IdentityMemory
 from methods.base import BaseVerificationMethod, MethodResult
 from methods.cocov import COCOV
@@ -370,7 +370,11 @@ def run_ablation(config_path: str) -> None:
     logger.info("=== COCOV Ablation Study ===")
 
     # Load calibration results
-    results_dir = Path(config['paths']['results_dir'])
+    results_dir = (
+        Path(config['paths']['results_dir'])
+        / config['encoder']['code']
+    )
+    results_dir.mkdir(parents=True, exist_ok=True)
     cal_path = results_dir / 'calibration_results.json'
 
     if not cal_path.exists():
@@ -389,9 +393,18 @@ def run_ablation(config_path: str) -> None:
     )
 
     # Encoder and dataset
-    encoder = FaceEncoder(
+    if config['encoder'].get('adaface_weights'):
+        import os
+        os.environ['ADAFACE_WEIGHTS'] = config['encoder']['adaface_weights']
+    if config['encoder'].get('vitarcface_weights'):
+        import os
+        os.environ['VITARCFACE_WEIGHTS'] = config['encoder']['vitarcface_weights']
+
+    encoder = get_encoder(
+        name=config['encoder']['name'],
         device=config['encoder']['device']
     )
+    logger.info(f"Encoder loaded: {encoder.info}")
     ds = VGGFace2Dataset(
         root=config['paths']['vggface2_root'],
         min_images=config['dataset']['vggface2'][
@@ -622,7 +635,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config',
         type=str,
-        default='/opt/code/cocov/config/config.yaml',
+        default='/opt/code/ps/cocov/config/config.yaml',
         help='Path to configuration file'
     )
     args = parser.parse_args()

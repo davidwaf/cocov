@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from data.dataset import VGGFace2Dataset
 from data.embeddings import EmbeddingCache
 from data.stream import VerificationStream
-from models.encoder import FaceEncoder
+from models.encoder import get_encoder
 from methods.static import StaticEnrollment
 from methods.ols import NaiveOLSExpansion
 from methods.replay import ReplayDualMemory
@@ -55,7 +55,9 @@ logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('/opt/data/logs/experiment.log')
+        logging.FileHandler(
+            str(Path('/opt/data/logs') / 'experiment.log')
+        )
     ]
 )
 
@@ -154,9 +156,19 @@ def run_all_experiments(config_path: str) -> None:
     logger.info("=== COCOV Experimental Evaluation ===")
     logger.info(f"Config: {config_path}")
 
-    encoder = FaceEncoder(
+    # Apply optional weight-path overrides from config to env vars
+    if config['encoder'].get('adaface_weights'):
+        import os
+        os.environ['ADAFACE_WEIGHTS'] = config['encoder']['adaface_weights']
+    if config['encoder'].get('vitarcface_weights'):
+        import os
+        os.environ['VITARCFACE_WEIGHTS'] = config['encoder']['vitarcface_weights']
+
+    encoder = get_encoder(
+        name=config['encoder']['name'],
         device=config['encoder']['device']
     )
+    logger.info(f"Encoder loaded: {encoder.info}")
 
     ds = VGGFace2Dataset(
         root=config['paths']['vggface2_root'],
@@ -178,7 +190,10 @@ def run_all_experiments(config_path: str) -> None:
         f"Selected fixed evaluation pool: {len(eval_ids)} identities"
     )
 
-    results_dir = Path(config['paths']['results_dir'])
+    results_dir = (
+        Path(config['paths']['results_dir'])
+        / config['encoder']['code']
+    )
     results_dir.mkdir(parents=True, exist_ok=True)
 
     cal_results_path = results_dir / 'calibration_results.json'
@@ -190,8 +205,11 @@ def run_all_experiments(config_path: str) -> None:
     else:
         logger.info("Running calibration...")
         calibrator = ThresholdCalibrator(
-            cache_dir=config['paths']['embeddings_dir'],
-            results_dir=config['paths']['results_dir']
+            cache_dir=(
+                Path(config['paths']['embeddings_dir'])
+                / config['encoder']['name']
+            ),
+            results_dir=results_dir
         )
 
         # Merge operating point into sweep config
@@ -295,8 +313,11 @@ def run_all_experiments(config_path: str) -> None:
             seed=run_seed
         )
 
+        _cache_subdir = config['encoder'].get(
+            'cache_subdir', config['encoder']['name']
+        )
         cache = EmbeddingCache(
-            cache_dir=config['paths']['embeddings_dir'],
+            cache_dir=str(Path(config['paths']['embeddings_dir']) / _cache_subdir),
             encoder=encoder,
             dataset_name='vggface2'
         )
@@ -477,7 +498,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config',
         type=str,
-        default='/opt/code/cocov/config/config.yaml',
+        default='/opt/code/ps/cocov/config/config.yaml',
         help='Path to configuration file'
     )
 
